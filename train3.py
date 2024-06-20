@@ -8,15 +8,24 @@ import torch.nn as nn
 import torch.optim as optim
 import time
 from pathlib import Path
-from torch.utils.tensorboard import SummaryWriter
+#from torch.utils.tensorboard import SummaryWriter
+import wandb
 
 def train(opt):
     epochs = opt.epochs
     batch_size = opt.batch_size
     name = opt.name
+    
+    # wandb settings
+    wandb.init(id=opt.name,resume='allow')
+    wandb.config.update(opt)
+
+    '''
     # tensorboard settings
     log_dir = Path('logs')/name
     tb_writer = SummaryWriter(log_dir=log_dir)
+    '''
+
     # Augmentation
     train_transforms = transforms.Compose([transforms.RandomCrop(32, padding=4),
                 transforms.RandomHorizontalFlip(),
@@ -49,6 +58,8 @@ def train(opt):
     if torch.cuda.device_count() > 1:   # multi-GPU
        model = torch.nn.DataParallel(model)
     model.to(device)
+
+    wandb.watch(model)
 
     # Loss function and optimizer
     loss_fn = nn.CrossEntropyLoss()
@@ -96,10 +107,16 @@ def train(opt):
         # saving the current status into a weight file
         state = {'model': model.state_dict(), 'epoch': epoch, 'best_accuracy': best_accuracy}
         torch.save(state, weight_file)
+
+        #wandb logging
+        wandb.log({'train_epoch_loss':epoch_loss, 'val_epoch_loss':val_epoch_loss, 'val_accuracy' : accuracy})
+
+        '''
         # tensorboard logging
         tb_writer.add_scalar('train_epoch_loss', epoch_loss, epoch)
         tb_writer.add_scalar('val_epoch_loss', val_epoch_loss, epoch)
         tb_writer.add_scalar('val_accuracy', accuracy, epoch)
+        '''
 
 def train_one_epoch(train_dataloader, model, loss_fn, optimizer, device, scaler=None):
     model.train()
@@ -148,9 +165,9 @@ def val_one_epoch(val_dataloader, model, loss_fn, device):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--epochs', type=int, default=200, help='target epochs')
-    parser.add_argument('--batch-size', type=int, default=4096, help='batch size')
-    parser.add_argument('--name', default='myvgg11_amp', help='name for the run')
+    parser.add_argument('--epochs', type=int, default=300, help='target epochs')
+    parser.add_argument('--batch-size', type=int, default=10000, help='batch size')
+    parser.add_argument('--name', default='Cheon', help='name for the run')
     parser.add_argument('--amp', action='store_true', help='use of amp')
 
     opt = parser.parse_args()
